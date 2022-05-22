@@ -2,7 +2,7 @@
 title: "Group Project 2"
 author: "Nikolay Skryabin, Torsten Dane Bjerling, ...? "
 date: "`r Sys.Date()`"
-output: 
+output:
   html_document:
     toc: true
     toc_depth: 3
@@ -111,12 +111,11 @@ global_deaths_df <- getDataFrame(URL_DEATHS_GLOBAL)
 
 ### Objective 1
 ```{r }
-
 # Calculates a sum of cases for each country
 calculateSumCases <- function(df)
 {
   # get max sum state using piping
-  sum_states <-na.omit(df) %>%                                # take the data frame
+  result_sum <-na.omit(df) %>%                                # take the data frame
           filter((Lat & Long) != 0, 
                  !str_detect(Country.Region, 'Olympics'),
                  !str_detect(Country.Region, 'Antarctica')) %>%
@@ -124,34 +123,42 @@ calculateSumCases <- function(df)
           group_by(Country.Region) %>%              # aggregate the states
           summarize("Sum"=sum(Last_Day,na.rm=T),
                     Lat.Mean=mean(Lat),
-                    Long.Mean=mean(Long))%>% # get a sum of cases for each state
-
-          select(Country.Region,Lat.Mean,Long.Mean,Sum)                    # get the state name
+                    Long.Mean=mean(Long))%>% # get a sum of cases for each country
+          select(Country.Region,Lat.Mean,Long.Mean,Sum) # get the country data
 }
 
+# Get the global dataframes for the confirmed and death cases data sets 
 global_confirmed_sums <- calculateSumCases(global_confirmed_df) %>%
                           rename(Confirmed=Sum)
 
 global_deaths_sums <- calculateSumCases(global_deaths_df) %>%
                       rename(Deaths=Sum)
-
+# Add a column with the death cases to get dataframe for all cases
 global_all_sums <- global_confirmed_sums %>%
                     mutate(Deaths = global_deaths_sums$Deaths)
 
+# Converts a column numbers to formatted strings
+format_numbers<- function(a_column)
+{
+  a_column <- paste0("",format((as.numeric(a_column)),
+                               big.mark = ",", nsmall = 1))
+}
 
+# Get the colors for the markers using colorQuantile()
 qpal_confirmed <- colorQuantile(c("#f59898","#fa4848","#330101"), global_all_sums$Confirmed, n = 5)
 
 qpal_deaths <- colorQuantile(c("#0084F7","#E0E0E0","#D00000"), global_all_sums$Deaths, n = 5)
 
+# Create a map for the confirmed and death cases
 global_map <- leaflet(data = global_all_sums) %>%
   addProviderTiles("CartoDB.Positron") %>%
   setView(0, 0,  zoom = 1) %>% 
   addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean, 
-                   popup = ~paste0("Confirmed: ",format(as.numeric(Confirmed), big.mark = ",", nsmall = 1)),
+                   popup = ~paste0("Confirmed: ",format_numbers(Confirmed)),
                    label = ~Country.Region,
                    color = ~qpal_confirmed(Confirmed), opacity = 0.7,group = "Confirmed",stroke=FALSE) %>%
   addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean,
-                   popup = ~paste0("Deaths: ",format(as.numeric(Deaths), big.mark = ",", nsmall = 1)),
+                   popup = ~paste0("Deaths: ",format_numbers(Deaths)),
                    label = ~Country.Region ,color = ~qpal_deaths(Deaths), group = "Deaths",stroke=FALSE) %>%
   addLayersControl(overlayGroups = c("Confirmed","Deaths"), options = layersControlOptions(collapsed = FALSE))
 
@@ -160,6 +167,33 @@ print(global_map)
 ```
 
 
+
+### Objective 2
+```{r }
+# Sorts a data by number of cases
+getSortedByCases<- function(df)
+{
+  cases <- df[,4]
+  result <- df%>%
+            arrange(desc(cases)) %>%
+            mutate_at(4,format_numbers)%>%
+            select(Country=1, Counts=4) 
+}
+
+# Get sorted countries by confirmed cases and add a rank column
+global_confirmed_rank <-getSortedByCases(global_confirmed_sums) %>%
+                        mutate(Rank = row_number(), .before= Country)
+
+# Get sorted countries by death cases
+global_deaths_rank <-getSortedByCases(global_deaths_sums)
+
+# Display 2 tables with confirmations and deaths
+kbl(list(global_confirmed_rank,global_deaths_rank)) %>%
+  kable_styling(fixed_thead = T)%>%
+  add_header_above(c("Confirmations" = 1, "Deaths"=1))
+  # row_spec(1:5, bold = T, color = "white", background = "#D7261E")
+
+```
 
 ### GitHub Log
 ```{bash gitlog} 
