@@ -1,0 +1,167 @@
+---
+title: "Group Project 2"
+author: "Nikolay Skryabin, Torsten Dane Bjerling, ...? "
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+header-includes:
+  - \usepackage{booktabs}
+  - \usepackage{longtable}
+  - \usepackage{array}
+  - \usepackage{multirow}
+  - \usepackage{wrapfig}
+  - \usepackage{float}
+  - \usepackage{colortbl}
+  - \usepackage{pdflscape}
+  - \usepackage{tabu}
+  - \usepackage{threeparttable}
+  - \usepackage{threeparttablex}
+  - \usepackage[normalem]{ulem}
+  - \usepackage{makecell}
+  - \usepackage{xcolor}
+---
+```{r setup, include = FALSE}
+
+#### Load necessary packages ####
+packages <- c("knitr", "kableExtra", "magrittr", "readr", "tidyverse",
+              "dplyr", "ggplot2", "tidyr","stringr", "leaflet")
+
+install_me <- packages[!(packages %in% installed.packages()[, "Package"])]
+if (length(install_me)) install.packages(install_me)
+
+library(knitr)
+library(kableExtra)
+library(magrittr)
+library(readr)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(stringr)
+library(leaflet)
+```
+
+## Background
+The World Health Organization has recently employed a new data science initiative, *CSIT-165*, that uses data science to characterize pandemic diseases. 
+*CSIT-165* disseminates data driven analyses to global decision makers.
+
+*CSIT-165* is a conglomerate comprised of two fabricated entities: *World Health Organization (WHO)* and *U.S. Pandemic Response Team (USPRT)*. Your and your partner’s role is to play a data scientist from one of these two entities. Discuss with your partner to decide who will be part of *WHO* and *USPRT*.
+
+## Data
+> [2019 Novel Coronavirus COVID-19 (2019-nCoV) Data Repository by John Hopkins CSSE](https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series)
+
+Data for 2019 Novel Coronavirus is operated by the John Hopkins University Center for Systems Science and Engineering (JHU CSSE).
+Data includes daily time series CSV summary tables, including confirmations, recoveries, and deaths. 
+Country/region are countries/regions hat conform to World Health Organization (WHO).
+Lat and Long refer to coordinates references for the user. 
+Date fields are stored in MM/DD/YYYY format.
+
+#### GitHub Repository of the Project
+> [R-group-project-2](https://github.com/nick404s/R-group-project-2)
+
+
+```{r}
+# URLs for the global confirmed and death cases files 
+URL_CONFIRMED_GLOBAL <- paste0("https://raw.githubusercontent.com/CSSEGISandData/",
+                "COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/",
+                "time_series_covid19_confirmed_global.csv")
+
+
+URL_DEATHS_GLOBAL <- paste0("https://raw.githubusercontent.com/CSSEGISandData/",
+                "COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/",
+                "time_series_covid19_deaths_global.csv")
+
+# URLs for the US confirmed and death cases files
+URL_CONFIRMED_US <- paste0("https://raw.githubusercontent.com/CSSEGISandData/",
+                "COVID-19/master/csse_covid_19_data/csse_covid_19_time_series/",
+                "time_series_covid19_confirmed_US.csv")
+
+URL_DEATHS_US <- paste0("https://raw.githubusercontent.com/CSSEGISandData/COVID-19/",
+                     "master/csse_covid_19_data/csse_covid_19_time_series/",
+                     "time_series_covid19_deaths_US.csv")
+
+# Loads a file from URL and reads data from the file into data frame
+getDataFrame <- function(url)
+{
+   # split the URL into list using "/" as delimiter
+  url_list<-strsplit(url,split = "/")
+  
+  file_name <- sapply(url_list, tail, 1) # get the file name 
+
+  download.file(url, file_name) # download the file
+
+  # create data frame from the file
+  data_frame <- read.csv(file_name, stringsAsFactors = FALSE) 
+
+  data_frame # return it
+}
+
+# Get the data frames for the global deaths and confirmed cases
+global_confirmed_df <- getDataFrame(URL_CONFIRMED_GLOBAL)
+global_deaths_df <- getDataFrame(URL_DEATHS_GLOBAL)
+
+# Get the data frames for the US deaths and confirmed cases
+# us_confirmed_df <- getDataFrame(URL_CONFIRMED_US)
+# us_deaths_df <- getDataFrame(URL_DEATHS_US)
+
+```
+## Project Objectives
+
+### Objective 1
+```{r }
+
+# Calculates a sum of cases for each country
+calculateSumCases <- function(df)
+{
+  # get max sum state using piping
+  sum_states <-na.omit(df) %>%                                # take the data frame
+          filter((Lat & Long) != 0, 
+                 !str_detect(Country.Region, 'Olympics'),
+                 !str_detect(Country.Region, 'Antarctica')) %>%
+          rename(Last_Day = last_col()) %>%         # rename the last column
+          group_by(Country.Region) %>%              # aggregate the states
+          summarize("Sum"=sum(Last_Day,na.rm=T),
+                    Lat.Mean=mean(Lat),
+                    Long.Mean=mean(Long))%>% # get a sum of cases for each state
+
+          select(Country.Region,Lat.Mean,Long.Mean,Sum)                    # get the state name
+}
+
+global_confirmed_sums <- calculateSumCases(global_confirmed_df) %>%
+                          rename(Confirmed=Sum)
+
+global_deaths_sums <- calculateSumCases(global_deaths_df) %>%
+                      rename(Deaths=Sum)
+
+global_all_sums <- global_confirmed_sums %>%
+                    mutate(Deaths = global_deaths_sums$Deaths)
+
+
+qpal_confirmed <- colorQuantile(c("#f59898","#fa4848","#330101"), global_all_sums$Confirmed, n = 5)
+
+qpal_deaths <- colorQuantile(c("#0084F7","#E0E0E0","#D00000"), global_all_sums$Deaths, n = 5)
+
+global_map <- leaflet(data = global_all_sums) %>%
+  addProviderTiles("CartoDB.Positron") %>%
+  setView(0, 0,  zoom = 1) %>% 
+  addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean, 
+                   popup = ~paste0("Confirmed: ",format(as.numeric(Confirmed), big.mark = ",", nsmall = 1)),
+                   label = ~Country.Region,
+                   color = ~qpal_confirmed(Confirmed), opacity = 0.7,group = "Confirmed",stroke=FALSE) %>%
+  addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean,
+                   popup = ~paste0("Deaths: ",format(as.numeric(Deaths), big.mark = ",", nsmall = 1)),
+                   label = ~Country.Region ,color = ~qpal_deaths(Deaths), group = "Deaths",stroke=FALSE) %>%
+  addLayersControl(overlayGroups = c("Confirmed","Deaths"), options = layersControlOptions(collapsed = FALSE))
+
+print(global_map)
+
+```
+
+
+
+### GitHub Log
+```{bash gitlog} 
+git log --pretty=format:"%nSubject: %s%nAuthor: %aN%nDate: %aD%nBody: %b"
+```
