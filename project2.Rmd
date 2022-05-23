@@ -103,8 +103,8 @@ global_confirmed_df <- getDataFrame(URL_CONFIRMED_GLOBAL)
 global_deaths_df <- getDataFrame(URL_DEATHS_GLOBAL)
 
 # Get the data frames for the US deaths and confirmed cases
-# us_confirmed_df <- getDataFrame(URL_CONFIRMED_US)
-# us_deaths_df <- getDataFrame(URL_DEATHS_US)
+us_confirmed_df <- getDataFrame(URL_CONFIRMED_US)
+us_deaths_df <- getDataFrame(URL_DEATHS_US)
 
 ```
 ## Project Objectives
@@ -114,13 +114,12 @@ global_deaths_df <- getDataFrame(URL_DEATHS_GLOBAL)
 # Calculates a sum of cases for each country
 calculateSumCases <- function(df)
 {
-  # get max sum state using piping
   result_sum <-na.omit(df) %>%                                # take the data frame
           filter((Lat & Long) != 0, 
-                 !str_detect(Country.Region, 'Olympics'),
-                 !str_detect(Country.Region, 'Antarctica')) %>%
+            !str_detect(Country.Region, 'Olympics'),
+            !str_detect(Country.Region, 'Antarctica')) %>% # filter not countries
           rename(Last_Day = last_col()) %>%         # rename the last column
-          group_by(Country.Region) %>%              # aggregate the states
+          group_by(Country.Region) %>%              # aggregate the countries
           summarize("Sum"=sum(Last_Day,na.rm=T),
                     Lat.Mean=mean(Lat),
                     Long.Mean=mean(Long))%>% # get a sum of cases for each country
@@ -130,10 +129,10 @@ calculateSumCases <- function(df)
 # Get the global dataframes for the confirmed and death cases data sets 
 global_confirmed_sums <- calculateSumCases(global_confirmed_df) %>%
                           rename(Confirmed=Sum)
-
 global_deaths_sums <- calculateSumCases(global_deaths_df) %>%
                       rename(Deaths=Sum)
-# Add a column with the death cases to get dataframe for all cases
+
+# Add a column with the death cases to create a dataframe for all cases
 global_all_sums <- global_confirmed_sums %>%
                     mutate(Deaths = global_deaths_sums$Deaths)
 
@@ -144,7 +143,7 @@ format_numbers<- function(a_column)
                                big.mark = ",", nsmall = 1))
 }
 
-# Get the colors for the markers using colorQuantile()
+# Set the colors for the markers using colorQuantile()
 qpal_confirmed <- colorQuantile(c("#f59898","#fa4848","#330101"), global_all_sums$Confirmed, n = 5)
 
 qpal_deaths <- colorQuantile(c("#0084F7","#E0E0E0","#D00000"), global_all_sums$Deaths, n = 5)
@@ -162,7 +161,7 @@ global_map <- leaflet(data = global_all_sums) %>%
                    label = ~Country.Region ,color = ~qpal_deaths(Deaths), group = "Deaths",stroke=FALSE) %>%
   addLayersControl(overlayGroups = c("Confirmed","Deaths"), options = layersControlOptions(collapsed = FALSE))
 
-print(global_map)
+global_map
 
 ```
 
@@ -190,10 +189,79 @@ global_deaths_rank <-getSortedByCases(global_deaths_sums)
 # Display 2 tables with confirmations and deaths
 kbl(list(global_confirmed_rank,global_deaths_rank)) %>%
   kable_styling(fixed_thead = T)%>%
-  add_header_above(c("Confirmations" = 1, "Deaths"=1))
-  # row_spec(1:5, bold = T, color = "white", background = "#D7261E")
+  add_header_above(c("Confirmations" = 1, "Deaths"=1)) %>%
+  scroll_box(width = "100%", height = "300px")
 
 ```
+
+### Objective 3
+```{r }
+# us_confirmed_df 
+# us_deaths_df
+
+# Get California confirmed data frame
+cali_confirmed_df <- na.omit(us_confirmed_df) %>%
+                      rename(City = Admin2)%>%
+                  filter(Province_State == "California", (Lat & Long_) != 0)
+
+# Get 3 top cities
+top3_cities <- cali_confirmed_df %>%
+  slice_max(order_by = cali_confirmed_df[,ncol(cali_confirmed_df)], n=3)
+                  
+# Creates a table with long data
+createLongTable <- function(df, isState=TRUE)
+{
+  # a variable to store a result dataframe  
+  result_long_sum <- 0
+  
+  if (isState) 
+  {
+    # summarise all state cases for each day
+    result_sum <- df %>% replace(is.na(.), 0) %>%                        
+                summarise(across(c(12:ncol(df)),
+                            sum, na.rm=T))
+    # gather dates and cases
+    result_long_sum <- gather(result_sum,
+                          key = Dates,
+                          value = Cases)
+  } else {
+    # gather dates and cases
+    result_long_sum <- gather(df,
+                          key = Dates,
+                          value = Cases,
+                          c(12:ncol(df)))
+  }
+
+  # edit a column with dates
+  result_long_sum$Dates <- str_replace(result_long_sum$Dates, "X", "") %>%
+                            str_trim(side = "both")
+
+  # format dates as.Date
+  result_long_sum <- result_long_sum %>%
+    separate(Dates, into = c("Month","Day","Year"), # Create 3 separate columns
+              remove = TRUE) %>%                    # remove Dates column
+    mutate(Year.Month.Day = as.Date(ISOdate(year = paste0("20",Year),
+                                            month = Month, day = Day))) 
+}
+
+
+
+long_cali_confirmed <- createLongTable(cali_confirmed_df) %>%
+                        select(Year.Month.Day, Cases)
+
+# long_cali_confirmed <- cali_confirmed_df %>% 
+#                 replace(is.na(.), 0) %>%                        
+#                 summarise(across(c(12:ncol(cali_confirmed_df)),
+#                             sum, na.rm=T)) %>%
+#                 gather(key = Dates,
+#                           value = Cases)
+
+long_top3_cities <- createLongTable(top3_cities, isState=FALSE) %>%
+    select(City, Year.Month.Day, Cases)
+  
+
+```
+
 
 ### GitHub Log
 ```{bash gitlog} 
