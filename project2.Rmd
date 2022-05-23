@@ -26,7 +26,7 @@ header-includes:
 
 #### Load necessary packages ####
 packages <- c("knitr", "kableExtra", "magrittr", "readr", "tidyverse",
-              "dplyr", "ggplot2", "tidyr","stringr", "leaflet")
+              "dplyr", "ggplot2", "tidyr","stringr", "leaflet", "cowplot")
 
 install_me <- packages[!(packages %in% installed.packages()[, "Package"])]
 if (length(install_me)) install.packages(install_me)
@@ -41,6 +41,7 @@ library(ggplot2)
 library(tidyr)
 library(stringr)
 library(leaflet)
+library(cowplot)
 ```
 
 ## Background
@@ -236,28 +237,39 @@ createLongTable <- function(df, isState=TRUE)
   result_long_sum$Dates <- str_replace(result_long_sum$Dates, "X", "") %>%
                             str_trim(side = "both")
 
-  # format dates as.Date
+  # format the Dates column as.Date
   result_long_sum <- result_long_sum %>%
-    separate(Dates, into = c("Month","Day","Year"), # Create 3 separate columns
-              remove = TRUE) %>%                    # remove Dates column
-    mutate(Year.Month.Day = as.Date(ISOdate(year = paste0("20",Year),
-                                            month = Month, day = Day))) 
+    separate(Dates, into = c("Month","Day","Year"))%>% # Create 3 separate columns
+    mutate(Dates = as.Date(ISOdate(year = paste0("20",Year),
+                                            month = Month, day = Day)))  
 }
 
 
 
 long_cali_confirmed <- createLongTable(cali_confirmed_df) %>%
-                        select(Year.Month.Day, Cases)
-
-# long_cali_confirmed <- cali_confirmed_df %>% 
-#                 replace(is.na(.), 0) %>%                        
-#                 summarise(across(c(12:ncol(cali_confirmed_df)),
-#                             sum, na.rm=T)) %>%
-#                 gather(key = Dates,
-#                           value = Cases)
+                        select(Dates, Cases)
 
 long_top3_cities <- createLongTable(top3_cities, isState=FALSE) %>%
-    select(City, Year.Month.Day, Cases)
+    select(City, Dates, Cases)
+
+library(ggplot2)
+
+
+cali_plot <- ggplot(long_cali_confirmed, aes(Dates, Cases)) + 
+  geom_point() + labs(title="COVID-19 confirmations in California") +
+  geom_vline(xintercept = as.numeric(as.Date("2020-03-19")), linetype=2, color="darkgreen", size=1.5) +
+      geom_text(mapping = aes(x = as.Date("2019-11-19"),
+                            y = 5000000,
+                            label = "SAH",
+                            hjust = -1,
+                            vjust = -1))+
+  scale_x_continuous(breaks=c(as.Date("2020-03-19"),as.Date("2021-01-299"), as.Date("2021-07-04"), as.Date("2021-12-20")))
+
+top3_cities_plot <- ggplot(long_top3_cities, aes(Dates, Cases, color = City)) +
+  geom_point() +
+  geom_vline(xintercept = as.numeric(as.Date("2020-03-19")), linetype=2, color="darkgreen", size=1.5)
+
+plot_grid(cali_plot, top3_cities_plot, nrow = 2)
   
 
 ```
