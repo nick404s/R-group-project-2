@@ -1,6 +1,6 @@
 ---
 title: "Group Project 2"
-author: "Nikolay Skryabin, Torsten Dane Bjerling, ...? "
+author: "Nikolay Skryabin, Torsten Bjerling, Jeanine Holscher."
 date: "`r Sys.Date()`"
 output:
   html_document:
