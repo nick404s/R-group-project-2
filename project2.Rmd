@@ -110,7 +110,7 @@ us_deaths_df <- getDataFrame(URL_DEATHS_US)
 ```
 ## Project Objectives
 
-### Objective 1
+### Objective 1 - Global Map
 ```{r }
 # Calculates a sum of cases for each country
 calculateSumCases <- function(df)
@@ -168,7 +168,7 @@ global_map
 
 
 
-### Objective 2
+### Objective 2 - Narrowing Down Hot Spots
 ```{r }
 # Sorts a data by number of cases
 getSortedByCases<- function(df)
@@ -195,7 +195,7 @@ kbl(list(global_confirmed_rank,global_deaths_rank)) %>%
 
 ```
 
-### Objective 3
+### Objective 3 - Zooming Into Our State
 ```{r }
 # us_confirmed_df 
 # us_deaths_df
@@ -272,6 +272,50 @@ top3_cities_plot <- ggplot(long_top3_cities, aes(Dates, Cases, color = City)) +
 plot_grid(cali_plot, top3_cities_plot, nrow = 2)
   
 
+```
+
+### Objective 4 - Digging Deeper
+```{r }
+# us_confirmed_df 
+# us_deaths_df
+
+# Select desired variables from US Confirmed and Deaths dataframes, as well as the UID variable to enable a clean join
+selectedConf <- data.frame("UID"=us_confirmed_df$"UID", "Province_State"=us_confirmed_df$"Province_State", "County"=us_confirmed_df$"Admin2",  "Confirmations"=us_confirmed_df[,ncol(us_confirmed_df)])
+
+selectedDeaths <- data.frame("UID"=us_deaths_df$"UID", "Population"=us_deaths_df$"Population", "Deaths"=us_deaths_df[,ncol(us_deaths_df)])
+
+# Join the two selected tables on the UID variable
+us_scatterplot1_df <- left_join(selectedConf, selectedDeaths, by = "UID")
+
+# Remove UID and reorder columns
+us_scatterplot1_df <- select(us_scatterplot1_df, "Province_State", "County", "Population", "Confirmations", "Deaths")
+
+# Prep data for both scatterplots by removing locations with fewer than 10 for either Confirmations or Population
+us_scatterplot1_df <- filter(us_scatterplot1_df, Confirmations >=  10, Population >= 10)
+
+# Prep data for second scatterplot by also removing locations with fewer than 10 Deaths
+us_scatterplot2_df <- filter(us_scatterplot1_df, Deaths >=  10)
+
+library(ggplot2)
+library(cowplot)
+
+# Create scatterplots, using log2 transformation on x and y axis for both plots
+us_scatterplot1 <- ggplot(us_scatterplot1_df, aes(Population, Confirmations)) + 
+  geom_point(color="darkblue") + 
+  labs(title="Confirmations Vs. Population", x="Population", y="Confirmed Cases") +
+  scale_x_continuous(labels = scales::comma, trans="log2") + 
+  scale_y_continuous(labels = scales::comma, trans="log2") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+us_scatterplot2 <- ggplot(us_scatterplot2_df, aes(Confirmations, Deaths)) +
+  geom_point(color="darkred") + 
+  labs(title="Deaths Vs. Confirmations", x="Confirmed Cases", y="Death Count") +
+  scale_x_continuous(labels = scales::comma, trans="log2") + 
+  scale_y_continuous(labels = scales::comma, trans="log2") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Display scatterplots in grid
+plot_grid(us_scatterplot1, us_scatterplot2)
 ```
 
 
