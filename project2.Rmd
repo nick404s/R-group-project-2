@@ -4,7 +4,9 @@ author: "Nikolay Skryabin, Torsten Bjerling, Jeanine Holscher."
 date: "`r Sys.Date()`"
 output:
   html_document:
+    theme: "flatly"
     toc: true
+    toc_float: true
     toc_depth: 3
 header-includes:
   - \usepackage{booktabs}
@@ -42,6 +44,7 @@ library(tidyr)
 library(stringr)
 library(leaflet)
 library(cowplot)
+library(scales)
 ```
 
 ## Background
@@ -54,7 +57,7 @@ The World Health Organization has recently employed a new data science initiativ
 > [2019 Novel Coronavirus COVID-19 (2019-nCoV) Data Repository by John Hopkins CSSE](https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series)
 
 Data for 2019 Novel Coronavirus is operated by the John Hopkins University Center for Systems Science and Engineering (JHU CSSE).
-Data includes daily time series CSV summary tables, including confirmations, recoveries, and deaths. 
+Data includes daily time series CSV summary tables, including confirmations and deaths. 
 Country/region are countries/regions hat conform to World Health Organization (WHO).
 Lat and Long refer to coordinates references for the user. 
 Date fields are stored in MM/DD/YYYY format.
@@ -62,7 +65,7 @@ Date fields are stored in MM/DD/YYYY format.
 #### GitHub Repository of the Project
 > [R-group-project-2](https://github.com/nick404s/R-group-project-2)
 
-
+Upload data
 ```{r}
 # URLs for the global confirmed and death cases files 
 URL_CONFIRMED_GLOBAL <- paste0("https://raw.githubusercontent.com/CSSEGISandData/",
@@ -108,22 +111,26 @@ us_confirmed_df <- getDataFrame(URL_CONFIRMED_US)
 us_deaths_df <- getDataFrame(URL_DEATHS_US)
 
 ```
+
+
 ## Project Objectives
 
 ### Objective 1 - Global Map
 ```{r }
+# Prepare data for the map:
+
 # Calculates a sum of cases for each country
 calculateSumCases <- function(df)
 {
-  result_sum <-na.omit(df) %>%                                # take the data frame
+  result_sum <-na.omit(df) %>%                          # omit NAs
           filter((Lat & Long) != 0, 
-            !str_detect(Country.Region, 'Olympics'),
-            !str_detect(Country.Region, 'Antarctica')) %>% # filter not countries
-          rename(Last_Day = last_col()) %>%         # rename the last column
-          group_by(Country.Region) %>%              # aggregate the countries
+          !str_detect(Country.Region, 'Olympics'),
+          !str_detect(Country.Region, 'Antarctica')) %>%# filter not countries
+          rename(Last_Day = last_col()) %>%             # rename the last column
+          group_by(Country.Region) %>%                  # aggregate the countries
           summarize("Sum"=sum(Last_Day,na.rm=T),
                     Lat.Mean=mean(Lat),
-                    Long.Mean=mean(Long))%>% # get a sum of cases for each country
+                    Long.Mean=mean(Long))%>%            # get a sum of cases
           select(Country.Region,Lat.Mean,Long.Mean,Sum) # get the country data
 }
 
@@ -138,16 +145,24 @@ global_all_sums <- global_confirmed_sums %>%
                     mutate(Deaths = global_deaths_sums$Deaths)
 
 # Converts a column numbers to formatted strings
-format_numbers<- function(a_column)
+format_numbers<- function(a_column, isDouble=TRUE)
 {
-  a_column <- paste0("",format((as.numeric(a_column)),
-                               big.mark = ",", nsmall = 1))
+  if (isDouble) 
+  {
+      a_column <- format((as.numeric(a_column)),
+                          big.mark = ",", nsmall = 1)
+  } else {
+    a_column <- format(a_column, big.mark = ",")
+  }
+  a_column
 }
 
-# Set the colors for the markers using colorQuantile()
-qpal_confirmed <- colorQuantile(c("#f59898","#fa4848","#330101"), global_all_sums$Confirmed, n = 5)
+# the shades of blue, grey, and red 
+color_vec <- c("#0458AB","#36454F","#DC143C") 
 
-qpal_deaths <- colorQuantile(c("#0084F7","#E0E0E0","#D00000"), global_all_sums$Deaths, n = 5)
+# Set palette for the markers using colorQuantile()
+qpal_confirmed <- colorQuantile(color_vec, global_all_sums$Confirmed, n = 5)
+qpal_deaths <- colorQuantile(color_vec, global_all_sums$Deaths, n = 5)
 
 # Create a map for the confirmed and death cases
 global_map <- leaflet(data = global_all_sums) %>%
@@ -156,8 +171,8 @@ global_map <- leaflet(data = global_all_sums) %>%
   addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean, 
                    popup = ~paste0("Confirmed: ",format_numbers(Confirmed)),
                    label = ~Country.Region,
-                   color = ~qpal_confirmed(Confirmed), opacity = 0.7,group = "Confirmed",stroke=FALSE) %>%
-  addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean,
+                   color = ~qpal_confirmed(Confirmed), opacity = 0.8,group = "Confirmed",stroke=FALSE) %>%
+  addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean, 
                    popup = ~paste0("Deaths: ",format_numbers(Deaths)),
                    label = ~Country.Region ,color = ~qpal_deaths(Deaths), group = "Deaths",stroke=FALSE) %>%
   addLayersControl(overlayGroups = c("Confirmed","Deaths"), options = layersControlOptions(collapsed = FALSE))
@@ -173,22 +188,25 @@ global_map
 # Sorts a data by number of cases
 getSortedByCases<- function(df)
 {
+  # subset a column with cases
   cases <- df[,4]
+  # get result
   result <- df%>%
-            arrange(desc(cases)) %>%
-            mutate_at(4,format_numbers)%>%
-            select(Country=1, Counts=4) 
+          arrange(desc(cases)) %>%              # sort the cases in desc order
+          mutate_at(4,format_numbers, FALSE)%>% # format the cases
+          select(Country=1, Counts=4)           # return the Columns
 }
 
-# Get sorted countries by confirmed cases and add a rank column
+# Get sorted countries by confirmed cases and add the Rank column
 global_confirmed_rank <-getSortedByCases(global_confirmed_sums) %>%
-                        mutate(Rank = row_number(), .before= Country)
+mutate(Rank = paste0(row_number(),"."), .before=Country) 
 
 # Get sorted countries by death cases
 global_deaths_rank <-getSortedByCases(global_deaths_sums)
 
-# Display 2 tables with confirmations and deaths
-kbl(list(global_confirmed_rank,global_deaths_rank)) %>%
+# Display 2 tables with the confirmations and deaths
+kbl(list(global_confirmed_rank,global_deaths_rank),
+  format = "html", format.args = ) %>%
   kable_styling(fixed_thead = T)%>%
   add_header_above(c("Confirmations" = 1, "Deaths"=1)) %>%
   scroll_box(width = "100%", height = "300px")
@@ -197,8 +215,7 @@ kbl(list(global_confirmed_rank,global_deaths_rank)) %>%
 
 ### Objective 3 - Zooming Into Our State
 ```{r }
-# us_confirmed_df 
-# us_deaths_df
+# Prepare data for the plots:
 
 # Get California confirmed data frame
 cali_confirmed_df <- na.omit(us_confirmed_df) %>%
@@ -209,13 +226,13 @@ cali_confirmed_df <- na.omit(us_confirmed_df) %>%
 top3_cities <- cali_confirmed_df %>%
   slice_max(order_by = cali_confirmed_df[,ncol(cali_confirmed_df)], n=3)
                   
-# Creates a table with long data
+# Creates a table with long data for the state or cities input 
 createLongTable <- function(df, isState=TRUE)
 {
   # a variable to store a result dataframe  
   result_long_sum <- 0
   
-  if (isState) 
+  if (isState) # check if the dataframe is for state 
   {
     # summarise all state cases for each day
     result_sum <- df %>% replace(is.na(.), 0) %>%                        
@@ -238,39 +255,56 @@ createLongTable <- function(df, isState=TRUE)
                             str_trim(side = "both")
 
   # format the Dates column as.Date
+  # separate the Dates column
+  # then put it together
   result_long_sum <- result_long_sum %>%
-    separate(Dates, into = c("Month","Day","Year"))%>% # Create 3 separate columns
-    mutate(Dates = as.Date(ISOdate(year = paste0("20",Year),
+    separate(Dates, into = c("Month","Day","Year"))%>% 
+    mutate(Dates = as.Date(ISOdate(year = paste0("20",Year), 
                                             month = Month, day = Day)))  
 }
 
-
-
+# Get a long table with dates and cases for California
 long_cali_confirmed <- createLongTable(cali_confirmed_df) %>%
                         select(Dates, Cases)
 
+# Get a long table with 3 top cities dates and cases for California 
 long_top3_cities <- createLongTable(top3_cities, isState=FALSE) %>%
     select(City, Dates, Cases)
 
-library(ggplot2)
+# Create vectors with dates, labels, and coordinates for the plot
+dates_vec <- as.Date(c("2020-03-19","2021-01-29", "2021-07-04", "2021-12-20"))
+x_coord_vec <- as.Date(c("2020-02-19","2020-11-29", "2021-06-04", "2021-10-20"))
+y_coord_vec<-rep(6500000,times=4)
+labels_vec <- c("SAH","EUA\n+6 weeks","Delta","Omicron")
 
-
+# Construct the California plot
 cali_plot <- ggplot(long_cali_confirmed, aes(Dates, Cases)) + 
   geom_point() + labs(title="COVID-19 confirmations in California") +
-  geom_vline(xintercept = as.numeric(as.Date("2020-03-19")), linetype=2, color="darkgreen", size=1.5) +
-      geom_text(mapping = aes(x = as.Date("2019-11-19"),
-                            y = 5000000,
-                            label = "SAH",
-                            hjust = -1,
-                            vjust = -1))+
-  scale_x_continuous(breaks=c(as.Date("2020-03-19"),as.Date("2021-01-299"), as.Date("2021-07-04"), as.Date("2021-12-20")))
+  labs(x="", y="Confirmations") +
+  geom_vline(xintercept = as.numeric(dates_vec[1:2]), linetype=2, color="darkgreen", size=1.5) +
+  geom_vline(xintercept = as.numeric(dates_vec[3:4]), linetype=2, color="red", size=1.5) +
+    annotate("text",
+              x = x_coord_vec,
+              y = y_coord_vec,
+              label = labels_vec) +
+  scale_y_continuous(labels=comma) +
+  scale_x_continuous(breaks=dates_vec)
 
+# Construct the top 3 cities plot
 top3_cities_plot <- ggplot(long_top3_cities, aes(Dates, Cases, color = City)) +
   geom_point() +
-  geom_vline(xintercept = as.numeric(as.Date("2020-03-19")), linetype=2, color="darkgreen", size=1.5)
+  labs(x="Date") +
+  geom_vline(xintercept = as.numeric(dates_vec[2]), linetype=2, color="darkgreen", size=1.5) +
+  geom_vline(xintercept = as.numeric(dates_vec[3:4]), linetype=2, color="red", size=1.5) +
+  scale_x_date(breaks = "210 days",
+  date_labels = "%Y-%m") +
+  theme(legend.title = element_blank(),
+        legend.key = element_blank()) +
+  scale_color_brewer(palette = "Set2") +
+  guides(colour = guide_legend(override.aes = list(shape="_",size=7)))
 
-plot_grid(cali_plot, top3_cities_plot, nrow = 2)
-  
+# Display the plots together
+plot_grid(cali_plot, top3_cities_plot, nrow = 2, align = "hv", axis = "tblr")
 
 ```
 
@@ -296,22 +330,19 @@ us_scatterplot1_df <- filter(us_scatterplot1_df, Confirmations >=  10, Populatio
 # Prep data for second scatterplot by also removing locations with fewer than 10 Deaths
 us_scatterplot2_df <- filter(us_scatterplot1_df, Deaths >=  10)
 
-library(ggplot2)
-library(cowplot)
-
 # Create scatterplots, using log2 transformation on x and y axis for both plots
 us_scatterplot1 <- ggplot(us_scatterplot1_df, aes(Population, Confirmations)) + 
   geom_point(color="darkblue") + 
   labs(title="Confirmations Vs. Population", x="Population", y="Confirmed Cases") +
-  scale_x_continuous(labels = scales::comma, trans="log2") + 
-  scale_y_continuous(labels = scales::comma, trans="log2") +
+  scale_x_continuous(labels = comma, trans="log2") + 
+  scale_y_continuous(labels = comma, trans="log2") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 us_scatterplot2 <- ggplot(us_scatterplot2_df, aes(Confirmations, Deaths)) +
   geom_point(color="darkred") + 
   labs(title="Deaths Vs. Confirmations", x="Confirmed Cases", y="Death Count") +
-  scale_x_continuous(labels = scales::comma, trans="log2") + 
-  scale_y_continuous(labels = scales::comma, trans="log2") +
+  scale_x_continuous(labels = comma, trans="log2") + 
+  scale_y_continuous(labels = comma, trans="log2") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 
 # Display scatterplots in grid
