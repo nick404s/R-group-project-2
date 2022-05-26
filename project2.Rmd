@@ -185,7 +185,9 @@ global_map
 
 ### Objective 2 - Narrowing Down Hot Spots
 ```{r }
-# Sorts a data by number of cases
+# Prepare data for a table:
+
+# Sorts a dataframe by the number of cases
 getSortedByCases<- function(df)
 {
   # subset a column with cases
@@ -199,7 +201,7 @@ getSortedByCases<- function(df)
 
 # Get sorted countries by confirmed cases and add the Rank column
 global_confirmed_rank <-getSortedByCases(global_confirmed_sums) %>%
-mutate(Rank = paste0(row_number(),"."), .before=Country) 
+mutate(Rank = row_number(), .before=Country) 
 
 # Get sorted countries by death cases
 global_deaths_rank <-getSortedByCases(global_deaths_sums)
@@ -212,6 +214,7 @@ kbl(list(global_confirmed_rank,global_deaths_rank),
   scroll_box(width = "100%", height = "300px")
 
 ```
+
 
 ### Objective 3 - Zooming Into Our State
 ```{r }
@@ -236,7 +239,7 @@ createLongTable <- function(df, isState=TRUE)
   {
     # summarise all state cases for each day
     result_sum <- df %>% replace(is.na(.), 0) %>%                        
-                summarise(across(c(12:ncol(df)),
+                summarise(across(12:last_col(),
                             sum, na.rm=T))
     # gather dates and cases
     result_long_sum <- gather(result_sum,
@@ -247,7 +250,7 @@ createLongTable <- function(df, isState=TRUE)
     result_long_sum <- gather(df,
                           key = Dates,
                           value = Cases,
-                          c(12:ncol(df)))
+                          12:last_col())
   }
 
   # edit a column with dates
