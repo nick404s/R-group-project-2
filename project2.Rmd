@@ -65,7 +65,7 @@ Date fields are stored in MM/DD/YYYY format.
 #### GitHub Repository of the Project
 > [R-group-project-2](https://github.com/nick404s/R-group-project-2)
 
-Upload data
+Download the data
 ```{r}
 # URLs for the global confirmed and death cases files 
 URL_CONFIRMED_GLOBAL <- paste0("https://raw.githubusercontent.com/CSSEGISandData/",
@@ -115,7 +115,8 @@ us_deaths_df <- getDataFrame(URL_DEATHS_US)
 
 ## Project Objectives
 
-### Objective 1 - Global Map
+### Objective 1
+Global Map
 ```{r }
 # Prepare data for the map:
 
@@ -131,7 +132,7 @@ calculateSumCases <- function(df)
           summarize("Sum"=sum(Last_Day,na.rm=T),
                     Lat.Mean=mean(Lat),
                     Long.Mean=mean(Long))%>%            # get a sum of cases
-          select(Country.Region,Lat.Mean,Long.Mean,Sum) # get the country data
+          select(Country.Region,Lat.Mean,Long.Mean,Sum) # get the countries data
 }
 
 # Get the global dataframes for the confirmed and death cases data sets 
@@ -149,15 +150,16 @@ format_numbers<- function(a_column, isDouble=TRUE)
 {
   if (isDouble) 
   {
-      a_column <- format((as.numeric(a_column)),
+    # format as numeric
+    a_column <- format((as.numeric(a_column)),
                           big.mark = ",", nsmall = 1)
   } else {
     a_column <- format(a_column, big.mark = ",")
   }
-  a_column
+  a_column # return it
 }
 
-# the shades of blue, grey, and red 
+# The shades of blue, grey, and red for the circle markers
 color_vec <- c("#0458AB","#36454F","#DC143C") 
 
 # Set palette for the markers using colorQuantile()
@@ -171,11 +173,14 @@ global_map <- leaflet(data = global_all_sums) %>%
   addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean, 
                    popup = ~paste0("Confirmed: ",format_numbers(Confirmed)),
                    label = ~Country.Region,
-                   color = ~qpal_confirmed(Confirmed), opacity = 0.8,group = "Confirmed",stroke=FALSE) %>%
+                   color = ~qpal_confirmed(Confirmed), opacity = 0.8,
+                   group = "Confirmed",stroke=FALSE) %>%
   addCircleMarkers(lat = ~Lat.Mean, lng = ~Long.Mean, 
                    popup = ~paste0("Deaths: ",format_numbers(Deaths)),
-                   label = ~Country.Region ,color = ~qpal_deaths(Deaths), group = "Deaths",stroke=FALSE) %>%
-  addLayersControl(overlayGroups = c("Confirmed","Deaths"), options = layersControlOptions(collapsed = FALSE))
+                   label = ~Country.Region ,color = ~qpal_deaths(Deaths), 
+                   group = "Deaths",stroke=FALSE) %>%
+  addLayersControl(overlayGroups = c("Confirmed","Deaths"), 
+                   options = layersControlOptions(collapsed = FALSE))
 
 global_map
 
@@ -183,7 +188,8 @@ global_map
 
 
 
-### Objective 2 - Narrowing Down Hot Spots
+### Objective 2
+Narrowing Down Hot Spots
 ```{r }
 # Prepare data for a table:
 
@@ -199,24 +205,26 @@ getSortedByCases<- function(df)
           select(Country=1, Counts=4)           # return the Columns
 }
 
-# Get sorted countries by confirmed cases and add the Rank column
+# Get sorted countries by the confirmed cases and add the Rank column
 global_confirmed_rank <-getSortedByCases(global_confirmed_sums) %>%
-mutate(Rank = row_number(), .before=Country) 
+mutate(Rank = row_number(), .before=Country)
 
 # Get sorted countries by death cases
 global_deaths_rank <-getSortedByCases(global_deaths_sums)
 
 # Display 2 tables with the confirmations and deaths
 kbl(list(global_confirmed_rank,global_deaths_rank),
-  format = "html", format.args = ) %>%
+  format = "html",align = "l") %>%
   kable_styling(fixed_thead = T)%>%
+  kable_paper("striped") %>%
   add_header_above(c("Confirmations" = 1, "Deaths"=1)) %>%
   scroll_box(width = "100%", height = "300px")
 
 ```
 
 
-### Objective 3 - Zooming Into Our State
+### Objective 3
+Zooming Into Our State
 ```{r }
 # Prepare data for the plots:
 
@@ -241,12 +249,12 @@ createLongTable <- function(df, isState=TRUE)
     result_sum <- df %>% replace(is.na(.), 0) %>%                        
                 summarise(across(12:last_col(),
                             sum, na.rm=T))
-    # gather dates and cases
+    # gather the dates and cases
     result_long_sum <- gather(result_sum,
                           key = Dates,
                           value = Cases)
   } else {
-    # gather dates and cases
+    # gather the dates and cases
     result_long_sum <- gather(df,
                           key = Dates,
                           value = Cases,
@@ -276,7 +284,7 @@ long_top3_cities <- createLongTable(top3_cities, isState=FALSE) %>%
 
 # Create vectors with dates, labels, and coordinates for the plot
 dates_vec <- as.Date(c("2020-03-19","2021-01-29", "2021-07-04", "2021-12-20"))
-x_coord_vec <- as.Date(c("2020-02-19","2020-11-29", "2021-06-04", "2021-10-20"))
+x_coord_vec <- as.Date(c("2020-02-10","2020-11-20", "2021-05-25", "2021-10-10"))
 y_coord_vec<-rep(6500000,times=4)
 labels_vec <- c("SAH","EUA\n+6 weeks","Delta","Omicron")
 
@@ -311,23 +319,30 @@ plot_grid(cali_plot, top3_cities_plot, nrow = 2, align = "hv", axis = "tblr")
 
 ```
 
-### Objective 4 - Digging Deeper
+### Objective 4
+Digging Deeper
 ```{r }
-# us_confirmed_df 
-# us_deaths_df
 
-# Select desired variables from US Confirmed and Deaths dataframes, as well as the UID variable to enable a clean join
-selectedConf <- data.frame("UID"=us_confirmed_df$"UID", "Province_State"=us_confirmed_df$"Province_State", "County"=us_confirmed_df$"Admin2",  "Confirmations"=us_confirmed_df[,ncol(us_confirmed_df)])
+# Select desired variables from US Confirmed and Deaths dataframes,
+# as well as the UID variable to enable a clean join
+selectedConf <- data.frame("UID"=us_confirmed_df$"UID",
+                           "Province_State"=us_confirmed_df$"Province_State",
+                           "County"=us_confirmed_df$"Admin2",
+                           "Confirmations"=us_confirmed_df[,ncol(us_confirmed_df)])
 
-selectedDeaths <- data.frame("UID"=us_deaths_df$"UID", "Population"=us_deaths_df$"Population", "Deaths"=us_deaths_df[,ncol(us_deaths_df)])
+selectedDeaths <- data.frame("UID"=us_deaths_df$"UID", 
+                             "Population"=us_deaths_df$"Population",
+                             "Deaths"=us_deaths_df[,ncol(us_deaths_df)])
 
 # Join the two selected tables on the UID variable
 us_scatterplot1_df <- left_join(selectedConf, selectedDeaths, by = "UID")
 
 # Remove UID and reorder columns
-us_scatterplot1_df <- select(us_scatterplot1_df, "Province_State", "County", "Population", "Confirmations", "Deaths")
+us_scatterplot1_df <- select(us_scatterplot1_df, "Province_State", "County", 
+                             "Population", "Confirmations", "Deaths")
 
-# Prep data for both scatterplots by removing locations with fewer than 10 for either Confirmations or Population
+# Prep data for both scatterplots by removing locations with fewer than 10
+# for either Confirmations or Population
 us_scatterplot1_df <- filter(us_scatterplot1_df, Confirmations >=  10, Population >= 10)
 
 # Prep data for second scatterplot by also removing locations with fewer than 10 Deaths
