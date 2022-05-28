@@ -146,17 +146,12 @@ global_all_sums <- global_confirmed_sums %>%
                     mutate(Deaths = global_deaths_sums$Deaths)
 
 # Converts a column numbers to formatted strings
-format_numbers<- function(a_column, isDouble=TRUE)
+format_numbers<- function(a_column)
 {
-  if (isDouble) 
-  {
-    # format as numeric
-    a_column <- format((as.numeric(a_column)),
-                          big.mark = ",", nsmall = 1)
-  } else {
-    a_column <- format(a_column, big.mark = ",")
-  }
-  a_column # return it
+  # format as numeric(double)
+  a_column <- format((as.numeric(a_column)),
+                      big.mark = ",", nsmall = 1)
+
 }
 
 # The shades of blue, grey, and red for the circle markers
@@ -201,7 +196,7 @@ getSortedByCases<- function(df)
   # get result
   result <- df%>%
           arrange(desc(cases)) %>%              # sort the cases in desc order
-          mutate_at(4,format_numbers, FALSE)%>% # format the cases
+          mutate_at(4,format_numbers)%>% # format the cases
           select(Country=1, Counts=4)           # return the Columns
 }
 
