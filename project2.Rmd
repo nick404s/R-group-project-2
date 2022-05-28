@@ -116,7 +116,7 @@ us_deaths_df <- getDataFrame(URL_DEATHS_US)
 ## Project Objectives
 
 ### Objective 1
-Global Map
+#### Global Map
 ```{r }
 # Prepare data for the map:
 
@@ -146,17 +146,12 @@ global_all_sums <- global_confirmed_sums %>%
                     mutate(Deaths = global_deaths_sums$Deaths)
 
 # Converts a column numbers to formatted strings
-format_numbers<- function(a_column, isDouble=TRUE)
+format_numbers<- function(a_column)
 {
-  if (isDouble) 
-  {
-    # format as numeric
-    a_column <- format((as.numeric(a_column)),
-                          big.mark = ",", nsmall = 1)
-  } else {
-    a_column <- format(a_column, big.mark = ",")
-  }
-  a_column # return it
+  # format as numeric(double)
+  a_column <- format((as.numeric(a_column)),
+                      big.mark = ",", nsmall = 1)
+
 }
 
 # The shades of blue, grey, and red for the circle markers
@@ -189,7 +184,7 @@ global_map
 
 
 ### Objective 2
-Narrowing Down Hot Spots
+#### Narrowing Down Hot Spots
 ```{r }
 # Prepare data for a table:
 
@@ -200,9 +195,9 @@ getSortedByCases<- function(df)
   cases <- df[,4]
   # get result
   result <- df%>%
-          arrange(desc(cases)) %>%              # sort the cases in desc order
-          mutate_at(4,format_numbers, FALSE)%>% # format the cases
-          select(Country=1, Counts=4)           # return the Columns
+          arrange(desc(cases)) %>%          # sort the cases in desc order
+          mutate_at(4,format_numbers)%>%    # format the cases
+          select(Country=1, Counts=4)       # return the Columns
 }
 
 # Get sorted countries by the confirmed cases and add the Rank column
@@ -224,7 +219,7 @@ kbl(list(global_confirmed_rank,global_deaths_rank),
 
 
 ### Objective 3
-Zooming Into Our State
+#### Zooming Into Our State
 ```{r }
 # Prepare data for the plots:
 
@@ -243,7 +238,7 @@ createLongTable <- function(df, isState=TRUE)
   # a variable to store a result dataframe  
   result_long_sum <- 0
   
-  if (isState) # check if the dataframe is for state 
+  if (isState) # check if the dataframe is for a state data 
   {
     # summarise all state cases for each day
     result_sum <- df %>% replace(is.na(.), 0) %>%                        
@@ -320,7 +315,7 @@ plot_grid(cali_plot, top3_cities_plot, nrow = 2, align = "hv", axis = "tblr")
 ```
 
 ### Objective 4
-Digging Deeper
+#### Digging Deeper
 ```{r }
 
 # Select desired variables from US Confirmed and Deaths dataframes,
